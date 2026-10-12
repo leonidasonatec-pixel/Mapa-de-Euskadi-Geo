@@ -1,0 +1,1301 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Euskal Herriko Geografia: Ríos y Relieves</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        basque: {
+                            green: '#10b981',
+                            red: '#ef4444',
+                            white: '#f8fafc',
+                            blue: '#0284c7',
+                            dark: '#0f172a',
+                            panel: '#1e293b'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Google Fonts & FontAwesome Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        /* SVG Map Styling */
+        .svg-container {
+            width: 100%;
+            height: 100%;
+            cursor: grab;
+        }
+        .svg-container:active {
+            cursor: grabbing;
+        }
+
+        /* Province backgrounds */
+        .province-bg {
+            fill: #1e293b;
+            stroke: #334155;
+            stroke-width: 1.5;
+            stroke-dasharray: 4, 3;
+            transition: fill 0.3s ease;
+        }
+        .province-bg:hover {
+            fill: #334155;
+        }
+
+        /* Relief Polygons */
+        .relief-unit {
+            cursor: pointer;
+            transition: all 0.25s ease;
+            stroke-width: 1.5;
+            opacity: 0.65;
+        }
+        .relief-unit:hover {
+            opacity: 0.95;
+            stroke-width: 3;
+            filter: drop-shadow(0 0 8px rgba(16, 185, 129, 0.6));
+        }
+
+        /* River Paths */
+        .river-path {
+            cursor: pointer;
+            fill: none;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            transition: all 0.25s ease;
+        }
+        .river-path-hitbox {
+            cursor: pointer;
+            fill: none;
+            stroke: transparent;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+        .river-path:hover, .river-path-hitbox:hover + .river-path {
+            stroke-width: 6 !important;
+            filter: drop-shadow(0 0 10px #38bdf8);
+        }
+
+        /* Active / Highlight State */
+        .item-selected {
+            opacity: 1 !important;
+            stroke-width: 4 !important;
+            filter: drop-shadow(0 0 12px #f59e0b) !important;
+            animation: pulse-glow 1.5s infinite alternate;
+        }
+
+        .item-correct {
+            stroke: #10b981 !important;
+            fill: rgba(16, 185, 129, 0.5) !important;
+            filter: drop-shadow(0 0 15px #10b981) !important;
+        }
+
+        .item-wrong {
+            stroke: #ef4444 !important;
+            fill: rgba(239, 68, 68, 0.5) !important;
+            filter: drop-shadow(0 0 15px #ef4444) !important;
+        }
+
+        @keyframes pulse-glow {
+            0% { filter: drop-shadow(0 0 5px #f59e0b); stroke-width: 3px; }
+            100% { filter: drop-shadow(0 0 18px #f59e0b); stroke-width: 6px; }
+        }
+
+        @keyframes river-pulse {
+            0% { stroke-width: 4px; stroke: #38bdf8; }
+            50% { stroke-width: 8px; stroke: #fbbf24; }
+            100% { stroke-width: 4px; stroke: #38bdf8; }
+        }
+
+        .quiz-pulse-target {
+            animation: river-pulse 1.2s infinite ease-in-out;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col overflow-x-hidden">
+
+    <header class="bg-slate-900/90 border-b border-slate-800 backdrop-blur sticky top-0 z-30 px-4 py-3">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 via-teal-600 to-sky-600 flex items-center justify-center text-white shadow-lg shadow-emerald-500/20 font-bold text-lg">
+                    EH
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight bg-gradient-to-r from-emerald-400 via-teal-200 to-sky-400 bg-clip-text text-transparent">
+                        Euskal Herriko Geografia
+                    </h1>
+                    <p class="text-xs text-slate-400">Ríos y Unidades Morfostructurales de Euskal Herria</p>
+                </div>
+            </div>
+
+            <!-- Filters & Category Switcher -->
+            <div class="flex flex-wrap items-center gap-2">
+                <div class="bg-slate-800/80 p-1 rounded-xl border border-slate-700/60 flex items-center text-xs font-medium">
+                    <button id="filter-all" onclick="setCategoryFilter('all')" class="px-3 py-1.5 rounded-lg bg-emerald-500 text-slate-950 font-semibold transition-all">
+                        Todos (34)
+                    </button>
+                    <button id="filter-rios" onclick="setCategoryFilter('rios')" class="px-3 py-1.5 rounded-lg text-slate-300 hover:text-white transition-all">
+                        <i class="fa-solid fa-water text-sky-400 mr-1"></i> Ríos (22)
+                    </button>
+                    <button id="filter-relieves" onclick="setCategoryFilter('relieves')" class="px-3 py-1.5 rounded-lg text-slate-300 hover:text-white transition-all">
+                        <i class="fa-solid fa-mountain text-amber-400 mr-1"></i> Relieves (12)
+                    </button>
+                </div>
+
+                <button id="btn-sound" onclick="toggleSound()" class="p-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-300 hover:text-emerald-400 hover:border-emerald-500/50 transition-all text-sm" title="Efectos de sonido">
+                    <i class="fa-solid fa-volume-high" id="sound-icon"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <nav class="bg-slate-900 border-b border-slate-800/80 px-4 py-2">
+        <div class="max-w-7xl mx-auto flex items-center justify-center sm:justify-start gap-2 overflow-x-auto text-xs font-semibold">
+            <button id="tab-estudio" onclick="switchMode('estudio')" class="px-4 py-2 rounded-lg bg-slate-800 text-emerald-400 border border-emerald-500/30 flex items-center gap-2 transition-all">
+                <i class="fa-solid fa-book-open"></i> Modo Exploración / Estudio
+            </button>
+            <button id="tab-mapa-quiz" onclick="switchMode('mapa-quiz')" class="px-4 py-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-slate-200 flex items-center gap-2 transition-all">
+                <i class="fa-solid fa-map-pin"></i> Quiz 1: Ubicar en Mapa
+            </button>
+            <button id="tab-identificar-quiz" onclick="switchMode('identificar-quiz')" class="px-4 py-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-slate-200 flex items-center gap-2 transition-all">
+                <i class="fa-solid fa-circle-question"></i> Quiz 2: Identificar Elemento
+            </button>
+            <button id="tab-repaso" onclick="startReviewMistakesMode()" class="hidden px-4 py-2 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-2 transition-all">
+                <i class="fa-solid fa-rotate-left"></i> Repasar Fallados (<span id="review-count">0</span>)
+            </button>
+        </div>
+    </nav>
+
+    <main class="flex-1 max-w-7xl w-full mx-auto p-3 md:p-5 grid grid-cols-1 lg:grid-cols-12 gap-5">
+
+        <!-- LEFT SIDEBAR: Controls, Info Card & Quiz Interface -->
+        <aside class="lg:col-span-4 flex flex-col gap-4 order-2 lg:order-1">
+
+            <!-- MODE 1: STUDY INFO BOX -->
+            <div id="panel-estudio" class="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 flex flex-col gap-4 shadow-xl">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <span class="text-xs uppercase font-bold tracking-wider text-emerald-400 flex items-center gap-2">
+                        <i class="fa-solid fa-compass"></i> Explorador Geográfico
+                    </span>
+                    <span id="study-category-badge" class="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-slate-800 text-slate-400 border border-slate-700">
+                        Selecciona un elemento
+                    </span>
+                </div>
+
+                <div id="study-card-content" class="min-h-[160px] flex flex-col justify-center">
+                    <div class="text-center text-slate-400 py-6">
+                        <i class="fa-solid fa-hand-pointer text-3xl text-slate-600 mb-3 animate-bounce"></i>
+                        <p class="text-sm">Pasa el cursor o haz clic sobre cualquier <b>Río</b> o <b>Unidad de Relieve</b> en el mapa para ver sus detalles.</p>
+                    </div>
+                </div>
+
+                <!-- Quick Search Input for Study Mode -->
+                <div class="relative mt-2">
+                    <label for="study-search-input" class="text-xs font-medium text-slate-400 mb-1 block">Buscar elemento rápido:</label>
+                    <div class="relative">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3 top-3 text-slate-500 text-xs"></i>
+                        <input id="study-search-input" type="text" placeholder="Ej: Zadorra, Kantauri..." oninput="filterStudyList(this.value)"
+                            class="w-full bg-slate-800/90 border border-slate-700 text-slate-100 text-sm rounded-xl pl-9 pr-3 py-2.5 focus:outline-none focus:border-emerald-500 transition-all" />
+                    </div>
+                    <!-- Suggestions Dropdown -->
+                    <div id="study-search-results" class="hidden absolute top-full left-0 right-0 mt-1 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl max-h-56 overflow-y-auto z-20"></div>
+                </div>
+            </div>
+
+            <!-- MODE 2 & 3: QUIZ CONTROLLER & SCOREBOARD -->
+            <div id="panel-quiz" class="hidden bg-slate-900/90 border border-slate-800 rounded-2xl p-5 flex-col gap-4 shadow-xl">
+                
+                <!-- Scoreboard Bar -->
+                <div class="grid grid-cols-4 gap-2 bg-slate-950/70 p-3 rounded-xl border border-slate-800/80 text-center">
+                    <div>
+                        <div class="text-[10px] text-slate-400 uppercase font-semibold">Aciertos</div>
+                        <div id="score-correct" class="text-lg font-bold text-emerald-400">0</div>
+                    </div>
+                    <div>
+                        <div class="text-[10px] text-slate-400 uppercase font-semibold">Errores</div>
+                        <div id="score-errors" class="text-lg font-bold text-rose-400">0</div>
+                    </div>
+                    <div>
+                        <div class="text-[10px] text-slate-400 uppercase font-semibold">Precisión</div>
+                        <div id="score-accuracy" class="text-lg font-bold text-amber-400">100%</div>
+                    </div>
+                    <div>
+                        <div class="text-[10px] text-slate-400 uppercase font-semibold">Tiempo</div>
+                        <div id="score-timer" class="text-lg font-bold text-sky-400">00:00</div>
+                    </div>
+                </div>
+
+                <!-- Progress Bar -->
+                <div>
+                    <div class="flex justify-between text-xs text-slate-400 mb-1">
+                        <span>Progreso del Examen</span>
+                        <span id="quiz-progress-text">0 / 0</span>
+                    </div>
+                    <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                        <div id="quiz-progress-bar" class="bg-gradient-to-r from-emerald-500 to-sky-500 h-full w-0 transition-all duration-300"></div>
+                    </div>
+                </div>
+
+                <!-- Active Question Box -->
+                <div class="bg-slate-800/60 border border-slate-700/60 rounded-xl p-4 flex flex-col gap-3">
+                    <span id="quiz-question-type" class="text-[10px] font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                        <i class="fa-solid fa-bullseye"></i> Pregunta Actual
+                    </span>
+
+                    <div id="quiz-prompt-container">
+                        <!-- Dynamic prompt injected via JS -->
+                    </div>
+
+                    <!-- Instant Feedback Message -->
+                    <div id="quiz-feedback" class="hidden p-3 rounded-xl text-xs font-semibold flex items-center gap-2"></div>
+                </div>
+
+                <!-- Quiz Action Buttons (Hint, Skip, Restart) -->
+                <div class="flex items-center gap-2">
+                    <button onclick="useHint()" class="flex-1 py-2.5 px-3 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs font-semibold flex items-center justify-center gap-2 transition-all">
+                        <i class="fa-solid fa-lightbulb"></i> Pedir Pista
+                    </button>
+                    <button onclick="skipQuestion()" class="flex-1 py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-semibold flex items-center justify-center gap-2 transition-all">
+                        <i class="fa-solid fa-forward"></i> Saltar
+                    </button>
+                    <button onclick="resetQuiz()" class="p-2.5 rounded-xl bg-slate-800 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 border border-slate-700 text-xs transition-all" title="Reiniciar Quiz">
+                        <i class="fa-solid fa-rotate-right"></i>
+                    </button>
+                </div>
+
+                <!-- Hint Box Container -->
+                <div id="hint-box" class="hidden bg-amber-950/30 border border-amber-500/30 p-3 rounded-xl text-xs text-amber-200">
+                    <i class="fa-solid fa-circle-info text-amber-400 mr-1"></i> <span id="hint-text"></span>
+                </div>
+            </div>
+
+            <!-- QUICK LEGEND CARD -->
+            <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 text-xs">
+                <div class="font-bold text-slate-300 mb-2 flex items-center justify-between">
+                    <span><i class="fa-solid fa-layer-group text-emerald-400 mr-1.5"></i> Leyenda del Mapa</span>
+                    <span class="text-[10px] text-slate-500">Vertiente Cantábrica / Mediterránea</span>
+                </div>
+                <div class="grid grid-cols-2 gap-2 text-slate-400">
+                    <div class="flex items-center gap-2">
+                        <span class="w-3 h-1 bg-sky-400 rounded-full"></span> Río Vertiente Cantábrica
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="w-3 h-1 bg-amber-400 rounded-full"></span> Río Vertiente Ebro/S.
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="w-3 h-3 bg-emerald-600/50 border border-emerald-400 rounded-sm"></span> Relieve Cantábrico
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="w-3 h-3 bg-amber-600/50 border border-amber-400 rounded-sm"></span> Relieve Mediterráneo
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- RIGHT/CENTER MAIN AREA: SVG INTERACTIVE MAP -->
+        <section class="lg:col-span-8 bg-slate-900/90 border border-slate-800 rounded-2xl p-2 md:p-4 flex flex-col relative shadow-2xl min-h-[500px] lg:min-h-[640px] order-1 lg:order-2 overflow-hidden">
+            
+            <!-- Floating Zoom & Pan Map Controls -->
+            <div class="absolute top-4 right-4 z-20 flex flex-col gap-1.5 bg-slate-950/80 border border-slate-800 p-1.5 rounded-xl shadow-lg backdrop-blur">
+                <button onclick="zoomMap(1.2)" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold flex items-center justify-center transition-all" title="Acercar (+)">
+                    <i class="fa-solid fa-plus"></i>
+                </button>
+                <button onclick="zoomMap(0.8)" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold flex items-center justify-center transition-all" title="Alejar (-)">
+                    <i class="fa-solid fa-minus"></i>
+                </button>
+                <button onclick="resetMapView()" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs flex items-center justify-center transition-all" title="Centrar Vista">
+                    <i class="fa-solid fa-expand"></i>
+                </button>
+            </div>
+
+            <!-- Dynamic Floating Hover Tooltip -->
+            <div id="map-tooltip" class="pointer-events-none fixed z-50 hidden bg-slate-900/95 border border-emerald-500/50 text-slate-100 text-xs px-3 py-2 rounded-xl shadow-2xl backdrop-blur max-w-xs transition-opacity duration-150">
+                <div id="tooltip-title" class="font-bold text-emerald-400"></div>
+                <div id="tooltip-subtitle" class="text-[10px] text-slate-400"></div>
+            </div>
+
+            <!-- SVG CANVAS CONTAINER -->
+            <div id="svg-viewport" class="w-full h-full flex-1 flex items-center justify-center relative overflow-hidden rounded-xl bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 border border-slate-800/50">
+                <svg id="basque-map-svg" viewBox="0 0 1000 680" class="svg-container w-full h-full">
+                    <defs>
+                        <!-- Gradients for reliefs -->
+                        <linearGradient id="grad-coastal" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#10b981" stop-opacity="0.4" />
+                            <stop offset="100%" stop-color="#047857" stop-opacity="0.6" />
+                        </linearGradient>
+                        <linearGradient id="grad-mountain" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#f59e0b" stop-opacity="0.4" />
+                            <stop offset="100%" stop-color="#b45309" stop-opacity="0.6" />
+                        </linearGradient>
+                        <linearGradient id="grad-valley" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#06b6d4" stop-opacity="0.4" />
+                            <stop offset="100%" stop-color="#0e7490" stop-opacity="0.6" />
+                        </linearGradient>
+                        <linearGradient id="grad-plain" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#84cc16" stop-opacity="0.4" />
+                            <stop offset="100%" stop-color="#4d7c0f" stop-opacity="0.6" />
+                        </linearGradient>
+                        
+                        <!-- Drop Shadow Filter -->
+                        <filter id="glow-shadow" x="-20%" y="-20%" width="140%" height="140%">
+                            <feGaussianBlur stdDeviation="4" result="blur" />
+                            <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                        </filter>
+                    </defs>
+
+                    <!-- MAP TRANSFORM GROUP -->
+                    <g id="map-world-group" transform="translate(0, 0) scale(1)">
+                        
+                        <!-- Cantabrian Sea Water Texture Layer -->
+                        <path d="M 0,0 L 1000,0 L 1000,140 Q 800,130 600,100 Q 400,110 200,90 Q 100,120 0,130 Z" fill="#0284c7" fill-opacity="0.08" />
+                        
+                        <!-- PROVINCE BACKGROUND SHAPES (7 Territories background outlines) -->
+                        <g id="provinces-layer">
+                            <!-- Bizkaia -->
+                            <path class="province-bg" d="M 70,250 C 90,170 170,140 260,150 C 350,150 370,180 370,230 C 360,300 300,320 220,320 C 120,320 60,300 70,250 Z" />
+                            <!-- Gipuzkoa -->
+                            <path class="province-bg" d="M 370,150 C 470,130 570,135 580,180 C 590,240 540,310 460,340 C 380,330 360,260 370,150 Z" />
+                            <!-- Araba -->
+                            <path class="province-bg" d="M 120,320 C 240,320 370,330 450,340 C 530,370 520,480 430,550 C 320,570 180,560 120,440 C 100,380 100,340 120,320 Z" />
+                            <!-- Trebiño (Inside Araba) -->
+                            <path class="province-bg" style="fill: #0f172a;" d="M 270,410 C 330,400 360,430 340,470 C 290,480 260,450 270,410 Z" />
+                            <!-- Lapurdi -->
+                            <path class="province-bg" d="M 580,110 C 670,100 690,140 680,190 C 630,210 590,200 580,180 Z" />
+                            <!-- Nafarroa Beherea -->
+                            <path class="province-bg" d="M 680,140 C 770,140 790,180 770,250 C 710,260 670,230 680,140 Z" />
+                            <!-- Zuberoa -->
+                            <path class="province-bg" d="M 770,160 C 880,160 890,210 870,280 C 800,290 760,270 770,160 Z" />
+                            <!-- Nafarroa (Navarra main body) -->
+                            <path class="province-bg" d="M 460,340 C 580,220 770,250 870,280 C 950,350 930,550 820,650 C 600,660 520,550 460,340 Z" />
+                            
+                            <!-- Province Labels -->
+                            <text x="210" y="230" fill="#475569" font-size="15" font-weight="700" letter-spacing="2">BIZKAIA</text>
+                            <text x="440" y="210" fill="#475569" font-size="15" font-weight="700" letter-spacing="2">GIPUZKOA</text>
+                            <text x="280" y="380" fill="#475569" font-size="16" font-weight="700" letter-spacing="2">ARABA</text>
+                            <text x="620" y="145" fill="#475569" font-size="11" font-weight="700">LAPURDI</text>
+                            <text x="700" y="195" fill="#475569" font-size="10" font-weight="700">NAFARROA BEHEREA</text>
+                            <text x="800" y="215" fill="#475569" font-size="11" font-weight="700">ZUBEROA</text>
+                            <text x="650" y="440" fill="#475569" font-size="20" font-weight="800" letter-spacing="3">NAFARROA</text>
+                        </g>
+
+                        <!-- RELIEF UNITS LAYER (12 Polygons) -->
+                        <g id="reliefs-layer">
+                            <!-- 1. Gipuzkoako Kostaldeko Katea -->
+                            <path id="rel-1" class="relief-unit" fill="url(#grad-coastal)" stroke="#10b981"
+                                  d="M 380,140 Q 470,125 575,130 L 570,165 Q 470,155 385,170 Z" />
+
+                            <!-- 2. Bortzirietako Mendigune Paleozoikoa -->
+                            <path id="rel-2" class="relief-unit" fill="url(#grad-mountain)" stroke="#f59e0b"
+                                  d="M 575,130 L 675,135 L 685,215 L 585,210 L 570,165 Z" />
+
+                            <!-- 3. Itsasertz Aurreko Katea -->
+                            <path id="rel-3" class="relief-unit" fill="url(#grad-mountain)" stroke="#38bdf8"
+                                  d="M 220,190 Q 350,180 540,210 L 530,250 Q 350,225 210,235 Z" />
+
+                            <!-- 4. Gipuzkoako erdi eta Bizkaiko behe ibilgunetako mendi eta haranak -->
+                            <path id="rel-4" class="relief-unit" fill="url(#grad-valley)" stroke="#06b6d4"
+                                  d="M 230,235 Q 380,220 530,250 L 510,295 Q 370,270 230,280 Z" />
+
+                            <!-- 5. Bizkaiko Mendebaldeko Mendi eta Haranak -->
+                            <path id="rel-5" class="relief-unit" fill="url(#grad-mountain)" stroke="#10b981"
+                                  d="M 75,180 L 210,190 L 200,310 L 80,310 Z" />
+
+                            <!-- 6. Arabako Mendebaldeko Mendilerro eta Haranak -->
+                            <path id="rel-6" class="relief-unit" fill="url(#grad-mountain)" stroke="#eab308"
+                                  d="M 100,315 L 240,320 L 220,440 L 110,430 Z" />
+
+                            <!-- 7. Kantauri-Mediterraneo Banalerroa -->
+                            <path id="rel-7" class="relief-unit" fill="url(#grad-mountain)" stroke="#ef4444"
+                                  d="M 210,285 Q 380,275 610,280 L 600,330 Q 380,320 200,325 Z" />
+
+                            <!-- 8. Arabako Lautada -->
+                            <path id="rel-8" class="relief-unit" fill="url(#grad-plain)" stroke="#84cc16"
+                                  d="M 240,335 Q 360,330 460,350 L 450,425 Q 350,405 250,420 Z" />
+
+                            <!-- 9. Trebiñuko Arroa -->
+                            <path id="rel-9" class="relief-unit" fill="url(#grad-valley)" stroke="#38bdf8"
+                                  d="M 270,410 C 330,400 360,430 340,470 C 290,480 260,450 270,410 Z" />
+
+                            <!-- 10. Arabako Erdialdeko Mendialdea eta Haranak -->
+                            <path id="rel-10" class="relief-unit" fill="url(#grad-mountain)" stroke="#f97316"
+                                  d="M 345,430 L 530,430 L 510,520 L 330,510 Z" />
+
+                            <!-- 11. Toloño-Kantauriar Mendilerroa -->
+                            <path id="rel-11" class="relief-unit" fill="url(#grad-mountain)" stroke="#a855f7"
+                                  d="M 190,520 L 450,520 L 440,560 L 180,555 Z" />
+
+                            <!-- 12. Ebroko Sakonunea -->
+                            <path id="rel-12" class="relief-unit" fill="url(#grad-plain)" stroke="#eab308"
+                                  d="M 180,565 L 850,570 L 820,660 L 170,640 Z" />
+                        </g>
+
+                        <!-- RIVERS LAYER (22 River paths with wider hitbox wrappers) -->
+                        <g id="rivers-layer">
+
+                            <!-- Helper Function / Templates for rivers -->
+                            <!-- CANTABRIAN SLOPE (North flowing) -->
+                            
+                            <!-- 1. Agüera -->
+                            <g id="riv-1-wrap" class="river-group">
+                                <path id="riv-1-hit" class="river-path-hitbox" stroke-width="18" d="M 85,260 Q 80,210 88,165" />
+                                <path id="riv-1" class="river-path" stroke="#38bdf8" stroke-width="3" d="M 85,260 Q 80,210 88,165" />
+                            </g>
+
+                            <!-- 2. Karrantza -->
+                            <g id="riv-2-wrap" class="river-group">
+                                <path id="riv-2-hit" class="river-path-hitbox" stroke-width="18" d="M 120,290 Q 95,280 80,265" />
+                                <path id="riv-2" class="river-path" stroke="#38bdf8" stroke-width="3" d="M 120,290 Q 95,280 80,265" />
+                            </g>
+
+                            <!-- 3. Barbadun -->
+                            <g id="riv-3-wrap" class="river-group">
+                                <path id="riv-3-hit" class="river-path-hitbox" stroke-width="18" d="M 145,235 Q 138,200 148,160" />
+                                <path id="riv-3" class="river-path" stroke="#38bdf8" stroke-width="3" d="M 145,235 Q 138,200 148,160" />
+                            </g>
+
+                            <!-- 4. Kadagua -->
+                            <g id="riv-4-wrap" class="river-group">
+                                <path id="riv-4-hit" class="river-path-hitbox" stroke-width="18" d="M 115,315 Q 155,270 205,200" />
+                                <path id="riv-4" class="river-path" stroke="#38bdf8" stroke-width="3.5" d="M 115,315 Q 155,270 205,200" />
+                            </g>
+
+                            <!-- 5. Nerbioi -->
+                            <g id="riv-5-wrap" class="river-group">
+                                <path id="riv-5-hit" class="river-path-hitbox" stroke-width="18" d="M 185,360 Q 210,300 215,205" />
+                                <path id="riv-5" class="river-path" stroke="#38bdf8" stroke-width="4" d="M 185,360 Q 210,300 215,205" />
+                            </g>
+
+                            <!-- 6. Ibaizabal -->
+                            <g id="riv-6-wrap" class="river-group">
+                                <path id="riv-6-hit" class="river-path-hitbox" stroke-width="18" d="M 315,245 Q 260,240 215,205" />
+                                <path id="riv-6" class="river-path" stroke="#38bdf8" stroke-width="3.5" d="M 315,245 Q 260,240 215,205" />
+                            </g>
+
+                            <!-- 7. Asua -->
+                            <g id="riv-7-wrap" class="river-group">
+                                <path id="riv-7-hit" class="river-path-hitbox" stroke-width="18" d="M 235,195 Q 220,190 210,185" />
+                                <path id="riv-7" class="river-path" stroke="#38bdf8" stroke-width="3" d="M 235,195 Q 220,190 210,185" />
+                            </g>
+
+                            <!-- 8. Butroe -->
+                            <g id="riv-8-wrap" class="river-group">
+                                <path id="riv-8-hit" class="river-path-hitbox" stroke-width="18" d="M 255,215 Q 235,190 210,150" />
+                                <path id="riv-8" class="river-path" stroke="#38bdf8" stroke-width="3" d="M 255,215 Q 235,190 210,150" />
+                            </g>
+
+                            <!-- 9. Oka -->
+                            <g id="riv-9-wrap" class="river-group">
+                                <path id="riv-9-hit" class="river-path-hitbox" stroke-width="18" d="M 285,235 Q 280,190 275,145" />
+                                <path id="riv-9" class="river-path" stroke="#38bdf8" stroke-width="3.5" d="M 285,235 Q 280,190 275,145" />
+                            </g>
+
+                            <!-- 10. Lea -->
+                            <g id="riv-10-wrap" class="river-group">
+                                <path id="riv-10-hit" class="river-path-hitbox" stroke-width="18" d="M 325,235 Q 320,190 315,145" />
+                                <path id="riv-10" class="river-path" stroke="#38bdf8" stroke-width="3" d="M 325,235 Q 320,190 315,145" />
+                            </g>
+
+                            <!-- 11. Artibai -->
+                            <g id="riv-11-wrap" class="river-group">
+                                <path id="riv-11-hit" class="river-path-hitbox" stroke-width="18" d="M 350,235 Q 345,190 340,145" />
+                                <path id="riv-11" class="river-path" stroke="#38bdf8" stroke-width="3" d="M 350,235 Q 345,190 340,145" />
+                            </g>
+
+                            <!-- 12. Deba -->
+                            <g id="riv-12-wrap" class="river-group">
+                                <path id="riv-12-hit" class="river-path-hitbox" stroke-width="18" d="M 380,310 Q 385,230 380,145" />
+                                <path id="riv-12" class="river-path" stroke="#38bdf8" stroke-width="4" d="M 380,310 Q 385,230 380,145" />
+                            </g>
+
+                            <!-- 13. Urola -->
+                            <g id="riv-13-wrap" class="river-group">
+                                <path id="riv-13-hit" class="river-path-hitbox" stroke-width="18" d="M 420,310 Q 425,220 420,140" />
+                                <path id="riv-13" class="river-path" stroke="#38bdf8" stroke-width="4" d="M 420,310 Q 425,220 420,140" />
+                            </g>
+
+                            <!-- 14. Oria -->
+                            <g id="riv-14-wrap" class="river-group">
+                                <path id="riv-14-hit" class="river-path-hitbox" stroke-width="18" d="M 455,330 Q 480,240 465,135" />
+                                <path id="riv-14" class="river-path" stroke="#38bdf8" stroke-width="4" d="M 455,330 Q 480,240 465,135" />
+                            </g>
+
+                            <!-- 15. Urumea -->
+                            <g id="riv-15-wrap" class="river-group">
+                                <path id="riv-15-hit" class="river-path-hitbox" stroke-width="18" d="M 525,260 Q 515,190 505,130" />
+                                <path id="riv-15" class="river-path" stroke="#38bdf8" stroke-width="3.5" d="M 525,260 Q 515,190 505,130" />
+                            </g>
+
+                            <!-- 16. Oiartzun -->
+                            <g id="riv-16-wrap" class="river-group">
+                                <path id="riv-16-hit" class="river-path-hitbox" stroke-width="18" d="M 555,185 Q 545,160 538,130" />
+                                <path id="riv-16" class="river-path" stroke="#38bdf8" stroke-width="3" d="M 555,185 Q 545,160 538,130" />
+                            </g>
+
+                            <!-- 17. Bidasoa -->
+                            <g id="riv-17-wrap" class="river-group">
+                                <path id="riv-17-hit" class="river-path-hitbox" stroke-width="18" d="M 680,240 Q 640,180 575,125" />
+                                <path id="riv-17" class="river-path" stroke="#38bdf8" stroke-width="4" d="M 680,240 Q 640,180 575,125" />
+                            </g>
+
+                            <!-- MEDITERRANEAN SLOPE (South flowing rivers to Ebro) -->
+
+                            <!-- 18. Omecillo -->
+                            <g id="riv-18-wrap" class="river-group">
+                                <path id="riv-18-hit" class="river-path-hitbox" stroke-width="18" d="M 130,370 Q 150,420 165,475" />
+                                <path id="riv-18" class="river-path" stroke="#f59e0b" stroke-width="3" d="M 130,370 Q 150,420 165,475" />
+                            </g>
+
+                            <!-- 19. Baia -->
+                            <g id="riv-19-wrap" class="river-group">
+                                <path id="riv-19-hit" class="river-path-hitbox" stroke-width="18" d="M 225,300 Q 230,400 215,495" />
+                                <path id="riv-19" class="river-path" stroke="#f59e0b" stroke-width="3.5" d="M 225,300 Q 230,400 215,495" />
+                            </g>
+
+                            <!-- 20. Zadorra -->
+                            <g id="riv-20-wrap" class="river-group">
+                                <path id="riv-20-hit" class="river-path-hitbox" stroke-width="18" d="M 390,345 Q 330,370 290,410 Q 270,460 245,510" />
+                                <path id="riv-20" class="river-path" stroke="#f59e0b" stroke-width="4.5" d="M 390,345 Q 330,370 290,410 Q 270,460 245,510" />
+                            </g>
+
+                            <!-- 21. Inglares -->
+                            <g id="riv-21-wrap" class="river-group">
+                                <path id="riv-21-hit" class="river-path-hitbox" stroke-width="18" d="M 315,475 Q 290,500 265,530" />
+                                <path id="riv-21" class="river-path" stroke="#f59e0b" stroke-width="3" d="M 315,475 Q 290,500 265,530" />
+                            </g>
+
+                            <!-- 22. Ega -->
+                            <g id="riv-22-wrap" class="river-group">
+                                <path id="riv-22-hit" class="river-path-hitbox" stroke-width="18" d="M 420,445 Q 520,460 580,615" />
+                                <path id="riv-22" class="river-path" stroke="#f59e0b" stroke-width="4" d="M 420,445 Q 520,460 580,615" />
+                            </g>
+
+                        </g>
+
+                        <!-- Dynamic Target Beacon Pulsing Effect for Quiz Identificar -->
+                        <circle id="quiz-target-beacon" cx="0" cy="0" r="18" fill="none" stroke="#fbbf24" stroke-width="3" class="hidden animate-ping pointer-events-none" />
+                        <circle id="quiz-target-dot" cx="0" cy="0" r="6" fill="#fbbf24" class="hidden pointer-events-none" />
+
+                    </g>
+                </svg>
+            </div>
+        </section>
+    </main>
+
+    <!-- MODAL: FINAL QUIZ SUMMARY RESULT -->
+    <div id="modal-summary" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl flex flex-col gap-5 animate-in fade-in zoom-in duration-200">
+            
+            <div class="text-center">
+                <div id="modal-badge-icon" class="w-16 h-16 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 mx-auto flex items-center justify-center text-3xl mb-3">
+                    <i class="fa-solid fa-trophy"></i>
+                </div>
+                <h2 class="text-2xl font-bold text-white">¡Examen Completado!</h2>
+                <p id="modal-subtitle" class="text-xs text-slate-400 mt-1">Resumen del rendimiento geográfico</p>
+            </div>
+
+            <!-- Score Stats Matrix -->
+            <div class="grid grid-cols-3 gap-3 bg-slate-950/80 p-4 rounded-xl border border-slate-800 text-center">
+                <div>
+                    <span class="text-[10px] text-slate-400 uppercase font-semibold">Aciertos</span>
+                    <div id="modal-correct" class="text-xl font-bold text-emerald-400">0</div>
+                </div>
+                <div>
+                    <span class="text-[10px] text-slate-400 uppercase font-semibold">Errores</span>
+                    <div id="modal-errors" class="text-xl font-bold text-rose-400">0</div>
+                </div>
+                <div>
+                    <span class="text-[10px] text-slate-400 uppercase font-semibold">Calificación</span>
+                    <div id="modal-grade" class="text-xl font-bold text-amber-400">Sobresaliente</div>
+                </div>
+            </div>
+
+            <!-- Mistakes List Box -->
+            <div id="modal-mistakes-container" class="hidden">
+                <span class="text-xs font-bold text-rose-400 mb-1 block">Elementos fallados en esta ronda:</span>
+                <div id="modal-mistakes-list" class="bg-slate-950/60 border border-slate-800 rounded-xl p-3 max-h-36 overflow-y-auto text-xs text-slate-300 flex flex-wrap gap-1.5">
+                </div>
+            </div>
+
+            <!-- Modal Action Buttons -->
+            <div class="flex flex-col sm:flex-row gap-2 mt-2">
+                <button id="btn-review-mistakes" onclick="startReviewMistakesMode(); closeModal();" class="hidden flex-1 py-3 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center justify-center gap-2 transition-all">
+                    <i class="fa-solid fa-rotate-left"></i> Repetir Solo Fallados
+                </button>
+                <button onclick="resetQuiz(); closeModal();" class="flex-1 py-3 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs flex items-center justify-center gap-2 transition-all">
+                    <i class="fa-solid fa-play"></i> Volver a Jugar
+                </button>
+                <button onclick="closeModal(); switchMode('estudio');" class="py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs transition-all">
+                    Estudiar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const GEO_DATABASE = [
+            // RÍOS (22)
+            { id: 'riv-1', name: 'Bidasoa', cat: 'rios', slope: 'Cantábrica', prov: 'Gipuzkoa / Nafarroa', desc: 'Nace en el puerto de Izpegi (Baztan) y desemboca en Txingudi (Hendaia/Irun). Hace de frontera histórica.' },
+            { id: 'riv-2', name: 'Oiartzun', cat: 'rios', slope: 'Cantábrica', prov: 'Gipuzkoa', desc: 'Río corto que nace en las Peñas de Aia (Aiako Harria) y desemboca en la bahía de Pasaia.' },
+            { id: 'riv-3', name: 'Urumea', cat: 'rios', slope: 'Cantábrica', prov: 'Nafarroa / Gipuzkoa', desc: 'Nace en Goizueta (Navarra) y atraviesa Hernani hasta desembocar en Donostia / San Sebastián.' },
+            { id: 'riv-4', name: 'Oria', cat: 'rios', slope: 'Cantábrica', prov: 'Gipuzkoa', desc: 'El río más largo y caudaloso de Gipuzkoa. Pasa por Beasain, Tolosa, Andoain y desemboca en Orio.' },
+            { id: 'riv-5', name: 'Urola', cat: 'rios', slope: 'Cantábrica', prov: 'Gipuzkoa', desc: 'Nace en la sierra de Aizkorri, pasa por Legazpi, Zumarraga, Azpeitia y Azkoitia, y desemboca en Zumaia.' },
+            { id: 'riv-6', name: 'Deba', cat: 'rios', slope: 'Cantábrica', prov: 'Gipuzkoa', desc: 'Nace en Leintz-Gatzaga, recorre la comarca del Alto y Bajo Deba (Arrasate, Bergara, Eibar) y desemboca en Deba.' },
+            { id: 'riv-7', name: 'Artibai', cat: 'rios', stroke: 'Cantábrica', prov: 'Bizkaia', desc: 'Nace en la falda del monte Oiz, pasa por Markina-Xemein y desemboca en Ondarroa.' },
+            { id: 'riv-8', name: 'Lea', cat: 'rios', slope: 'Cantábrica', prov: 'Bizkaia', desc: 'Nace en el monte Oiz, recorre Munitibar y Areatza, y desemboca entre Lekeitio y Mendexa.' },
+            { id: 'riv-9', name: 'Oka', cat: 'rios', slope: 'Cantábrica', prov: 'Bizkaia', desc: 'Principal río de la Reserva de la Biosfera de Urdaibai. Pasa por Gernika y forma la ría de Mundaka.' },
+            { id: 'riv-10', name: 'Butroe', cat: 'rios', slope: 'Cantábrica', prov: 'Bizkaia', desc: 'Nace en Bizkargi, pasa junto al famoso Castillo de Butrón en Mungia y desemboca en Plentzia.' },
+            { id: 'riv-11', name: 'Asua', cat: 'rios', slope: 'Cantábrica', prov: 'Bizkaia', desc: 'Atraviesa el valle del Txorierri (Sondika, Loiu, Derio) e desemboca en la ría del Nerbioi.' },
+            { id: 'riv-12', name: 'Ibaizabal', cat: 'rios', slope: 'Cantábrica', prov: 'Bizkaia', desc: 'Nace en Elorrio, recoge las aguas del Durangaldea y se une al Nerbioi en Basauri.' },
+            { id: 'riv-13', name: 'Nerbioi', cat: 'rios', slope: 'Cantábrica', prov: 'Araba / Bizkaia', desc: 'Nace en el famoso Salto del Nervión (Delika), pasa por Orduña y Laudio, y forma la Ría de Bilbao.' },
+            { id: 'riv-14', name: 'Kadagua', cat: 'rios', slope: 'Cantábrica', prov: 'Bizkaia / Burgos', desc: 'Eje de las Encartaciones (Enkarterri). Pasa por Balmaseda, Zalla y Güeñes hasta Basurto/Zorrotza.' },
+            { id: 'riv-15', name: 'Barbadun', cat: 'rios', slope: 'Cantábrica', prov: 'Bizkaia', desc: 'Río de Muskiz en las Encartaciones que desemboca en la playa de La Arena.' },
+            { id: 'riv-16', name: 'Agüera', cat: 'rios', slope: 'Cantábrica', prov: 'Bizkaia / Cantabria', desc: 'Río límite de las Encartaciones occidentales que fluye hacia el mar Cantábrico en Oriñón.' },
+            { id: 'riv-17', name: 'Karrantza', cat: 'rios', slope: 'Cantábrica', prov: 'Bizkaia', desc: 'Atraviesa el amplio valle de Karrantza en el extremo más occidental de Bizkaia.' },
+            { id: 'riv-18', name: 'Omecillo', cat: 'rios', slope: 'Mediterránea', prov: 'Araba', desc: 'Río del occidente alavés (Valdegovía) que fluye hacia el sur para alimentar al río Ebro.' },
+            { id: 'riv-19', name: 'Baia', cat: 'rios', slope: 'Mediterránea', prov: 'Araba', desc: 'Nace en la vertiente sur del Gorbeia, atraviesa Kuartango y Añana y desemboca en el Ebro cerca de Miranda.' },
+            { id: 'riv-20', name: 'Zadorra', cat: 'rios', slope: 'Mediterránea', prov: 'Araba', desc: 'Río vital de Álava. Alimenta los embalses de Ullibarri-Gamboa, bordea Vitoria-Gasteiz y desemboca en el Ebro.' },
+            { id: 'riv-21', name: 'Inglares', cat: 'rios', slope: 'Mediterránea', prov: 'Araba', desc: 'Nace en Peñacerrada en la Sierra de Cantabria/Toloño y desemboca en el Ebro en Berantevilla.' },
+            { id: 'riv-22', name: 'Ega', cat: 'rios', slope: 'Mediterránea', prov: 'Araba / Nafarroa', desc: 'Nace en Álava (Bernedo), se adentra en Navarra por Estella-Lizarra y desemboca en el Ebro en San Adrián.' },
+
+            // RELIEVES (12)
+            { id: 'rel-1', name: 'Gipuzkoako Kostaldeko Katea', cat: 'relieves', slope: 'Cantábrica', prov: 'Gipuzkoa', desc: 'Cadena montañosa litoral que bordea el mar Cantábrico en Gipuzkoa (Jaizkibel, Ulia, Igeldo, Itzurun).' },
+            { id: 'rel-2', name: 'Bortzirietako Mendigune Paleozoikoa', cat: 'relieves', slope: 'Cantábrica', prov: 'Nafarroa / Gipuzkoa', desc: 'Macizo antiguo de rocas paleozoicas en la zona de las Cinco Villas / Bortziriak y Peñas de Aia.' },
+            { id: 'rel-3', name: 'Itsasertz Aurreko Katea', cat: 'relieves', slope: 'Cantábrica', prov: 'Bizkaia / Gipuzkoa', desc: 'Alineación de sierras prelitorales detrás de la costa (Durangaldea, Sollube, Ernio).' },
+            { id: 'rel-4', name: 'Gipuzkoako erdi eta Bizkaiko behe ibilgunetako mendi eta haranak', cat: 'relieves', slope: 'Cantábrica', prov: 'Bizkaia / Gipuzkoa', desc: 'Relieve suave de colinas y valles fluviales encajados del centro de Gipuzkoa y bajo curso vizcaíno.' },
+            { id: 'rel-5', name: 'Bizkaiko Mendebaldeko Mendi eta Haranak', cat: 'relieves', slope: 'Cantábrica', prov: 'Bizkaia (Enkarterri)', desc: 'Sierras y valles montañosos del oeste de Bizkaia (Ordunte, Triano, Galdames).' },
+            { id: 'rel-6', name: 'Arabako Mendebaldeko Mendilerro eta Haranak', cat: 'relieves', slope: 'Mediterránea', prov: 'Araba', desc: 'Sierras altas y valles occidentales alaveses (Sierra de Gorbeia sur, Arkamo, Badaia, Valdegovía).' },
+            { id: 'rel-7', name: 'Kantauri-Mediterraneo Banalerroa', cat: 'relieves', slope: 'Transición', prov: 'Bizkaia / Araba / Gipuzkoa / Nafarroa', desc: 'Divisoria principal de aguas de Euskal Herria (Gorbeia, Urkiola, Elgea, Aizkorri, Aralar).' },
+            { id: 'rel-8', name: 'Arabako Lautada', cat: 'relieves', slope: 'Mediterránea', prov: 'Araba', desc: 'Gran cuenca sedimentaria llana en el corazón de Álava donde se ubica Vitoria-Gasteiz.' },
+            { id: 'rel-9', name: 'Trebiñuko Arroa', cat: 'relieves', slope: 'Mediterránea', prov: 'Araba / Burgos', desc: 'Depresión o cuenca del río Zadorra/Ayuda encajada al sur de las sierras alavesas.' },
+            { id: 'rel-10', name: 'Arabako Erdialdeko Mendialdea eta Haranak', cat: 'relieves', slope: 'Mediterránea', prov: 'Araba', desc: 'Sierras intermedias alavesas al sur de la Lautada (Izki, Entzia, Kodés).' },
+            { id: 'rel-11', name: 'Toloño-Kantauriar Mendilerroa', cat: 'relieves', slope: 'Mediterránea', prov: 'Araba / La Rioja', desc: 'Imponente muralla rocosa calcárea que separa la montaña alavesa de la Rioja Alavesa.' },
+            { id: 'rel-12', name: 'Ebroko Sakonunea', cat: 'relieves', slope: 'Mediterránea', prov: 'Araba / Nafarroa', desc: 'Depresión meridional llana del valle del Ebro (Rioja Alavesa y Ribera Navarra).' }
+        ];
+
+        let activeCategoryFilter = 'all'; // 'all', 'rios', 'relieves'
+        let currentMode = 'estudio'; // 'estudio', 'mapa-quiz', 'identificar-quiz'
+        let soundEnabled = true;
+
+        // Quiz State Variables
+        let quizQueue = [];
+        let currentQuizIndex = 0;
+        let currentTargetItem = null;
+        let scoreCorrect = 0;
+        let scoreErrors = 0;
+        let mistakesList = [];
+        let timerInterval = null;
+        let timerSeconds = 0;
+        let isReviewMode = false;
+
+        // Map Viewport SVG Transform State
+        let mapScale = 1;
+        let mapTranslate = { x: 0, y: 0 };
+        let isDraggingMap = false;
+        let dragStart = { x: 0, y: 0 };
+
+        let audioCtx = null;
+        function playSynthSound(type) {
+            if (!soundEnabled) return;
+            try {
+                if (!audioCtx) {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                const now = audioCtx.currentTime;
+                if (type === 'correct') {
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(523.25, now); // C5
+                    osc.frequency.exponentialRampToValueAtTime(659.25, now + 0.1); // E5
+                    osc.frequency.exponentialRampToValueAtTime(783.99, now + 0.2); // G5
+                    gain.gain.setValueAtTime(0.2, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+                    osc.start(now);
+                    osc.stop(now + 0.35);
+                } else if (type === 'wrong') {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(220, now); // A3
+                    osc.frequency.setValueAtTime(164.81, now + 0.12); // E3
+                    gain.gain.setValueAtTime(0.25, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+                    osc.start(now);
+                    osc.stop(now + 0.3);
+                } else if (type === 'hint') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(440, now);
+                    gain.gain.setValueAtTime(0.15, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+                    osc.start(now);
+                    osc.stop(now + 0.2);
+                }
+            } catch (e) {
+                console.log("Audio play blocked", e);
+            }
+        }
+
+        function toggleSound() {
+            soundEnabled = !soundEnabled;
+            const icon = document.getElementById('sound-icon');
+            if (soundEnabled) {
+                icon.className = 'fa-solid fa-volume-high';
+                playSynthSound('hint');
+            } else {
+                icon.className = 'fa-solid fa-volume-xmark text-rose-400';
+            }
+        }
+
+        window.onload = function() {
+            initializeMapEvents();
+            initializeElementEvents();
+            switchMode('estudio');
+        };
+
+        // Category Filter Switching
+        function setCategoryFilter(filter) {
+            activeCategoryFilter = filter;
+            
+            // Update button UI styles
+            ['all', 'rios', 'relieves'].forEach(cat => {
+                const btn = document.getElementById(`filter-${cat}`);
+                if (cat === filter) {
+                    btn.className = "px-3 py-1.5 rounded-lg bg-emerald-500 text-slate-950 font-semibold transition-all";
+                } else {
+                    btn.className = "px-3 py-1.5 rounded-lg text-slate-300 hover:text-white transition-all";
+                }
+            });
+
+            // Update visible elements on SVG Map
+            GEO_DATABASE.forEach(item => {
+                const el = document.getElementById(item.id);
+                const wrap = document.getElementById(`${item.id}-wrap`);
+                const target = wrap || el;
+                
+                if (!target) return;
+
+                if (filter === 'all' || item.cat === filter) {
+                    target.style.display = '';
+                } else {
+                    target.style.display = 'none';
+                }
+            });
+
+            // If quiz is running, reset with new filter
+            if (currentMode !== 'estudio') {
+                resetQuiz();
+            }
+        };
+
+        function initializeElementEvents() {
+            GEO_DATABASE.forEach(item => {
+                const el = document.getElementById(item.id);
+                const wrap = document.getElementById(`${item.id}-wrap`);
+                const hit = document.getElementById(`${item.id}-hit`);
+                const targets = [el, wrap, hit].filter(Boolean);
+
+                targets.forEach(target => {
+                    // Hover Tooltip Events
+                    target.addEventListener('mouseenter', (e) => showTooltip(e, item));
+                    target.addEventListener('mousemove', (e) => moveTooltip(e));
+                    target.addEventListener('mouseleave', () => hideTooltip());
+
+                    // Click Event
+                    target.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        handleMapItemClick(item);
+                    });
+                });
+            });
+        }
+
+        function showTooltip(e, item) {
+            const tooltip = document.getElementById('map-tooltip');
+            document.getElementById('tooltip-title').innerText = item.name;
+            document.getElementById('tooltip-subtitle').innerText = `${item.cat === 'rios' ? 'Río' : 'Relieve'} • Vertiente ${item.slope} (${item.prov})`;
+            tooltip.classList.remove('hidden');
+            moveTooltip(e);
+        }
+
+        function moveTooltip(e) {
+            const tooltip = document.getElementById('map-tooltip');
+            tooltip.style.left = `${e.clientX + 12}px`;
+            tooltip.style.top = `${e.clientY + 12}px`;
+        }
+
+        function hideTooltip() {
+            document.getElementById('map-tooltip').classList.add('hidden');
+        }
+
+        function initializeMapEvents() {
+            const viewport = document.getElementById('svg-viewport');
+            const world = document.getElementById('map-world-group');
+
+            viewport.addEventListener('mousedown', (e) => {
+                if (e.target.tagName === 'path' || e.target.tagName === 'circle') return;
+                isDraggingMap = true;
+                dragStart = { x: e.clientX - mapTranslate.x, y: e.clientY - mapTranslate.y };
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (!isDraggingMap) return;
+                mapTranslate.x = e.clientX - dragStart.x;
+                mapTranslate.y = e.clientY - dragStart.y;
+                applyMapTransform();
+            });
+
+            window.addEventListener('mouseup', () => {
+                isDraggingMap = false;
+            });
+
+            viewport.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                const zoomFactor = e.deltaY < 0 ? 1.15 : 0.85;
+                zoomMap(zoomFactor);
+            });
+        }
+
+        function zoomMap(factor) {
+            mapScale = Math.max(0.8, Math.min(3.5, mapScale * factor));
+            applyMapTransform();
+        }
+
+        function resetMapView() {
+            mapScale = 1;
+            mapTranslate = { x: 0, y: 0 };
+            applyMapTransform();
+        }
+
+        function applyMapTransform() {
+            const world = document.getElementById('map-world-group');
+            world.setAttribute('transform', `translate(${mapTranslate.x}, ${mapTranslate.y}) scale(${mapScale})`);
+        }
+
+        function switchMode(mode) {
+            currentMode = mode;
+            hideTooltip();
+            clearHighlights();
+
+            // Tabs UI Styling
+            ['estudio', 'mapa-quiz', 'identificar-quiz'].forEach(m => {
+                const tab = document.getElementById(`tab-${m}`);
+                if (m === mode) {
+                    tab.className = "px-4 py-2 rounded-lg bg-slate-800 text-emerald-400 border border-emerald-500/30 flex items-center gap-2 transition-all font-bold";
+                } else {
+                    tab.className = "px-4 py-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-slate-200 flex items-center gap-2 transition-all";
+                }
+            });
+
+            const panelEstudio = document.getElementById('panel-estudio');
+            const panelQuiz = document.getElementById('panel-quiz');
+
+            if (mode === 'estudio') {
+                panelEstudio.classList.remove('hidden');
+                panelQuiz.classList.add('hidden');
+                stopTimer();
+            } else {
+                panelEstudio.classList.add('hidden');
+                panelQuiz.classList.remove('hidden');
+                startQuiz();
+            }
+        }
+
+        function displayStudyCard(item) {
+            highlightMapItem(item.id);
+            const badge = document.getElementById('study-category-badge');
+            badge.innerText = item.cat === 'rios' ? 'Río' : 'Relieve';
+            badge.className = `px-2.5 py-0.5 rounded-full text-[10px] font-semibold ${item.cat === 'rios' ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40' : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'}`;
+
+            const container = document.getElementById('study-card-content');
+            container.innerHTML = `
+                <div class="flex flex-col gap-2 animate-in fade-in duration-200">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-xl font-bold text-white tracking-wide">${item.name}</h3>
+                        <span class="text-xs font-semibold text-slate-400"><i class="fa-solid fa-location-dot text-rose-400 mr-1"></i>${item.prov}</span>
+                    </div>
+                    <div class="text-xs text-slate-300 bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 leading-relaxed">
+                        ${item.desc}
+                    </div>
+                    <div class="flex items-center gap-4 text-[11px] text-slate-400 mt-1">
+                        <span><b>Vertiente:</b> ${item.slope}</span>
+                        <span><b>Tipo:</b> ${item.cat === 'rios' ? 'Curso Fluvial' : 'Unidad Morfostructural'}</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        function filterStudyList(val) {
+            const resContainer = document.getElementById('study-search-results');
+            if (!val || val.trim() === '') {
+                resContainer.classList.add('hidden');
+                return;
+            }
+
+            const query = val.toLowerCase().trim();
+            const matches = GEO_DATABASE.filter(i => 
+                (activeCategoryFilter === 'all' || i.cat === activeCategoryFilter) &&
+                i.name.toLowerCase().includes(query)
+            );
+
+            if (matches.length === 0) {
+                resContainer.innerHTML = `<div class="p-3 text-xs text-slate-400">No se encontraron resultados</div>`;
+            } else {
+                resContainer.innerHTML = matches.map(m => `
+                    <button onclick="selectStudyItem('${m.id}')" class="w-full text-left px-3 py-2 text-xs hover:bg-slate-700/80 text-slate-200 flex items-center justify-between border-b border-slate-700/40 last:border-0">
+                        <span class="font-bold">${m.name}</span>
+                        <span class="text-[10px] text-slate-400">${m.cat === 'rios' ? 'Río' : 'Relieve'}</span>
+                    </button>
+                `).join('');
+            }
+            resContainer.classList.remove('hidden');
+        }
+
+        function selectStudyItem(id) {
+            const item = GEO_DATABASE.find(i => i.id === id);
+            if (item) {
+                displayStudyCard(item);
+                document.getElementById('study-search-input').value = item.name;
+                document.getElementById('study-search-results').classList.add('hidden');
+            }
+        }
+
+        function startQuiz() {
+            let list = GEO_DATABASE.filter(i => activeCategoryFilter === 'all' || i.cat === activeCategoryFilter);
+            
+            if (isReviewMode && mistakesList.length > 0) {
+                list = mistakesList;
+            }
+
+            // Shuffle queue
+            quizQueue = [...list].sort(() => Math.random() - 0.5);
+            currentQuizIndex = 0;
+            scoreCorrect = 0;
+            scoreErrors = 0;
+            if (!isReviewMode) mistakesList = [];
+
+            updateScoreboard();
+            startTimer();
+            loadNextQuizQuestion();
+        }
+
+        function loadNextQuizQuestion() {
+            clearHighlights();
+            document.getElementById('hint-box').classList.add('hidden');
+            document.getElementById('quiz-feedback').classList.add('hidden');
+
+            if (currentQuizIndex >= quizQueue.length) {
+                finishQuiz();
+                return;
+            }
+
+            currentTargetItem = quizQueue[currentQuizIndex];
+            updateQuizProgressText();
+
+            const promptContainer = document.getElementById('quiz-prompt-container');
+            const qType = document.getElementById('quiz-question-type');
+
+            if (currentMode === 'mapa-quiz') {
+                // VARIANT 1: Locate name on map
+                qType.innerHTML = `<i class="fa-solid fa-map-pin text-emerald-400"></i> Haz clic en el mapa`;
+                promptContainer.innerHTML = `
+                    <div class="text-sm text-slate-300">
+                        Localiza en el mapa el siguiente elemento:
+                        <div class="text-xl font-extrabold text-emerald-400 mt-1">${currentTargetItem.name}</div>
+                        <div class="text-[11px] text-slate-400 mt-1">Categoría: ${currentTargetItem.cat === 'rios' ? 'Río' : 'Relieve'}</div>
+                    </div>
+                `;
+            } else if (currentMode === 'identificar-quiz') {
+                // VARIANT 2: Highlighted on map, select or type name
+                qType.innerHTML = `<i class="fa-solid fa-circle-question text-amber-400"></i> Identifica el elemento resaltado`;
+                
+                // Highlight item on SVG map with pulsing beacon
+                highlightQuizTargetOnMap(currentTargetItem);
+
+                // Generate 4 multiple choice options + autocomplete search
+                const options = generateQuizOptions(currentTargetItem);
+
+                promptContainer.innerHTML = `
+                    <div class="flex flex-col gap-3">
+                        <p class="text-xs text-slate-300">¿Cómo se llama el río o relieve resaltado en amarillo en el mapa?</p>
+                        
+                        <!-- Choice Buttons -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            ${options.map(opt => `
+                                <button onclick="checkAnswer('${opt.name}')" class="py-2.5 px-3 bg-slate-800 hover:bg-slate-700 text-slate-100 rounded-xl text-xs font-semibold border border-slate-700 text-left hover:border-emerald-500/50 transition-all">
+                                    ${opt.name}
+                                </button>
+                            `).join('')}
+                        </div>
+
+                        <!-- Autocomplete Backup Field -->
+                        <div class="relative mt-1">
+                            <input id="quiz-text-input" type="text" placeholder="O escribe el nombre..." onkeydown="handleQuizInputKey(event)"
+                                class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-amber-400" />
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        function generateQuizOptions(correctItem) {
+            const pool = GEO_DATABASE.filter(i => (activeCategoryFilter === 'all' || i.cat === activeCategoryFilter) && i.id !== correctItem.id);
+            const shuffledPool = [...pool].sort(() => Math.random() - 0.5);
+            const distractors = shuffledPool.slice(0, 3);
+            const options = [correctItem, ...distractors].sort(() => Math.random() - 0.5);
+            return options;
+        }
+
+        function handleQuizInputKey(e) {
+            if (e.key === 'Enter') {
+                checkAnswer(e.target.value.trim());
+            }
+        }
+
+        function handleMapItemClick(item) {
+            if (currentMode === 'estudio') {
+                displayStudyCard(item);
+            } else if (currentMode === 'mapa-quiz') {
+                checkAnswer(item.name);
+            }
+        }
+
+        function checkAnswer(answerName) {
+            if (!currentTargetItem) return;
+
+            const isCorrect = answerName.toLowerCase() === currentTargetItem.name.toLowerCase();
+            const feedbackEl = document.getElementById('quiz-feedback');
+
+            if (isCorrect) {
+                scoreCorrect++;
+                playSynthSound('correct');
+                showFeedback(true, `¡Correcto! ${currentTargetItem.name}`);
+                highlightCorrectOnMap(currentTargetItem.id);
+            } else {
+                scoreErrors++;
+                playSynthSound('wrong');
+                if (!mistakesList.some(m => m.id === currentTargetItem.id)) {
+                    mistakesList.push(currentTargetItem);
+                }
+                showFeedback(false, `Incorrecto. La respuesta era: ${currentTargetItem.name}`);
+                highlightWrongOnMap(currentTargetItem.id);
+            }
+
+            updateScoreboard();
+
+            // Auto advance after 1.4 seconds
+            setTimeout(() => {
+                currentQuizIndex++;
+                loadNextQuizQuestion();
+            }, 1400);
+        }
+
+        function showFeedback(isSuccess, text) {
+            const feedbackEl = document.getElementById('quiz-feedback');
+            feedbackEl.innerText = text;
+            feedbackEl.className = `p-3 rounded-xl text-xs font-semibold flex items-center gap-2 ${isSuccess ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-rose-500/20 text-rose-300 border border-rose-500/40'}`;
+            feedbackEl.classList.remove('hidden');
+        }
+
+        function useHint() {
+            if (!currentTargetItem) return;
+            playSynthSound('hint');
+            const hintBox = document.getElementById('hint-box');
+            const hintText = document.getElementById('hint-text');
+            hintText.innerText = `Pista: Se ubica en ${currentTargetItem.prov} (Vertiente ${currentTargetItem.slope}).`;
+            hintBox.classList.remove('hidden');
+        }
+
+        function skipQuestion() {
+            if (!currentTargetItem) return;
+            scoreErrors++;
+            if (!mistakesList.some(m => m.id === currentTargetItem.id)) {
+                mistakesList.push(currentTargetItem);
+            }
+            updateScoreboard();
+            currentQuizIndex++;
+            loadNextQuizQuestion();
+        }
+
+        function resetQuiz() {
+            isReviewMode = false;
+            document.getElementById('tab-repaso').classList.add('hidden');
+            startQuiz();
+        }
+
+        function startReviewMistakesMode() {
+            if (mistakesList.length === 0) return;
+            isReviewMode = true;
+            document.getElementById('tab-repaso').classList.remove('hidden');
+            document.getElementById('review-count').innerText = mistakesList.length;
+            switchMode('mapa-quiz');
+        }
+
+        function highlightMapItem(id) {
+            clearHighlights();
+            const el = document.getElementById(id);
+            if (el) el.classList.add('item-selected');
+        }
+
+        function highlightQuizTargetOnMap(item) {
+            clearHighlights();
+            const el = document.getElementById(item.id);
+            if (el) el.classList.add('quiz-pulse-target');
+
+            // Position Beacon
+            const bbox = el.getBBox();
+            const beacon = document.getElementById('quiz-target-beacon');
+            const dot = document.getElementById('quiz-target-dot');
+            beacon.setAttribute('cx', bbox.x + bbox.width / 2);
+            beacon.setAttribute('cy', bbox.y + bbox.height / 2);
+            dot.setAttribute('cx', bbox.x + bbox.width / 2);
+            dot.setAttribute('cy', bbox.y + bbox.height / 2);
+            beacon.classList.remove('hidden');
+            dot.classList.remove('hidden');
+        }
+
+        function highlightCorrectOnMap(id) {
+            clearHighlights();
+            const el = document.getElementById(id);
+            if (el) el.classList.add('item-correct');
+        }
+
+        function highlightWrongOnMap(id) {
+            clearHighlights();
+            const el = document.getElementById(id);
+            if (el) el.classList.add('item-wrong');
+        }
+
+        function clearHighlights() {
+            GEO_DATABASE.forEach(item => {
+                const el = document.getElementById(item.id);
+                if (el) {
+                    el.classList.remove('item-selected', 'quiz-pulse-target', 'item-correct', 'item-wrong');
+                }
+            });
+            document.getElementById('quiz-target-beacon').classList.add('hidden');
+            document.getElementById('quiz-target-dot').classList.add('hidden');
+        }
+
+        function updateScoreboard() {
+            document.getElementById('score-correct').innerText = scoreCorrect;
+            document.getElementById('score-errors').innerText = scoreErrors;
+
+            const total = scoreCorrect + scoreErrors;
+            const accuracy = total > 0 ? Math.round((scoreCorrect / total) * 100) : 100;
+            document.getElementById('score-accuracy').innerText = `${accuracy}%`;
+        }
+
+        function updateQuizProgressText() {
+            const total = quizQueue.length;
+            const curr = currentQuizIndex + 1;
+            document.getElementById('quiz-progress-text').innerText = `${curr} / ${total}`;
+            const pct = (curr / total) * 100;
+            document.getElementById('quiz-progress-bar').style.width = `${pct}%`;
+        }
+
+        function startTimer() {
+            stopTimer();
+            timerSeconds = 0;
+            timerInterval = setInterval(() => {
+                timerSeconds++;
+                const mins = String(Math.floor(timerSeconds / 60)).padStart(2, '0');
+                const secs = String(timerSeconds % 60).padStart(2, '0');
+                document.getElementById('score-timer').innerText = `${mins}:${secs}`;
+            }, 1000);
+        }
+
+        function stopTimer() {
+            if (timerInterval) clearInterval(timerInterval);
+        }
+
+        function finishQuiz() {
+            stopTimer();
+            playSynthSound('correct');
+
+            const total = scoreCorrect + scoreErrors;
+            const accuracy = total > 0 ? Math.round((scoreCorrect / total) * 100) : 100;
+
+            document.getElementById('modal-correct').innerText = scoreCorrect;
+            document.getElementById('modal-errors').innerText = scoreErrors;
+
+            // Determine Grade Badge
+            let grade = 'Sobresaliente';
+            let colorClass = 'text-emerald-400';
+            if (accuracy < 60) {
+                grade = 'Necesita Repaso';
+                colorClass = 'text-rose-400';
+            } else if (accuracy < 80) {
+                grade = 'Bien / Notable';
+                colorClass = 'text-amber-400';
+            }
+
+            const gradeEl = document.getElementById('modal-grade');
+            gradeEl.innerText = grade;
+            gradeEl.className = `text-xl font-bold ${colorClass}`;
+
+            // Handle Mistakes List
+            const mistakesContainer = document.getElementById('modal-mistakes-container');
+            const mistakesListEl = document.getElementById('modal-mistakes-list');
+            const reviewBtn = document.getElementById('btn-review-mistakes');
+
+            if (mistakesList.length > 0) {
+                mistakesContainer.classList.remove('hidden');
+                reviewBtn.classList.remove('hidden');
+                document.getElementById('review-count').innerText = mistakesList.length;
+                document.getElementById('tab-repaso').classList.remove('hidden');
+
+                mistakesListEl.innerHTML = mistakesList.map(m => `
+                    <span class="px-2 py-1 rounded-md bg-rose-500/10 text-rose-300 border border-rose-500/20 font-medium">
+                        ${m.name} (${m.cat === 'rios' ? 'Río' : 'Relieve'})
+                    </span>
+                `).join('');
+            } else {
+                mistakesContainer.classList.add('hidden');
+                reviewBtn.classList.add('hidden');
+                document.getElementById('tab-repaso').classList.add('hidden');
+            }
+
+            document.getElementById('modal-summary').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('modal-summary').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
